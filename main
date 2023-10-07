@@ -1,0 +1,140 @@
+	
+if workspace:FindFirstChild("Hoverboard") then
+workspace:FindFirstChild("Hoverboard"):Destroy()
+end
+	local hb = game:GetObjects("rbxassetid://14020046813")[1]
+	hb.Parent = workspace
+	local car =hb
+	hb.PrimaryPart = hb.Part
+		local c = game.Players.LocalPlayer.Character
+			car:SetPrimaryPartCFrame(CFrame.new(c.Head.CFrame.X + 10,c.Head.CFrame.Y,c.Head.CFrame.Z))
+	
+local RunService = game:GetService("RunService")
+local character = c
+local humanoid = character:WaitForChild("Humanoid")
+local connection = nil
+local seat = nil
+local attachment = nil
+local vectorForce = nil
+local orientation = nil
+local alignOrientation = nil
+local raycastParams = nil
+
+local rayOffset = Vector3.new(0, -8, 0)
+local rayVelocity = 0.2
+local minimumThrust = 600
+local thrust = 2000
+local drag = 0.008
+local counter = 0.004
+
+
+local rayPart = Instance.new("Part")
+rayPart.Anchored = true
+rayPart.CanCollide = false
+rayPart.CanQuery = false
+rayPart.CanTouch = false
+rayPart.Shape = Enum.PartType.Ball
+rayPart.Size = Vector3.one
+rayPart.Parent = workspace
+local fol = Instance.new("Folder",car)
+	local par
+	local seatc = car.Hoverboard
+	local oldpos = seatc.CFrame
+	local oldsize = hb.Part.Size
+	seatc.Parent.Part.WeldConstraint.Parent = seatc
+	seatc.WeldConstraint.Enabled = false
+	Instance.new("Part",fol)
+	 	for i,v in pairs(seatc:GetChildren()) do
+	 	v.Parent = fol.Part
+	 	end
+	seatc:Destroy()
+ 	for i,v in pairs(workspace:GetDescendants()) do
+ 	if v:IsA("VehicleSeat")  then
+ 	seatc = v
+ 	par = v.Parent
+ 	end
+ 	end
+ 	seatc.Parent = car
+ 	seatc.CFrame = oldpos
+ 	seatc.Size =oldsize
+ 	seatc:ClearAllChildren()
+ 	par:ClearAllChildren()
+ 	seatc.CFrame = CFrame.new(car.PrimaryPart.CFrame.X,car.PrimaryPart.CFrame.Y -1.5 ,car.PrimaryPart.CFrame.Z)
+ 	par:ClearAllChildren()
+ 	seatc:ClearAllChildren()
+ 	for i,v in pairs(fol.Part:GetChildren()) do
+	 	v.Parent = seatc
+	 	end
+ 	seatc.Name = "Hoverboard"
+ 	seatc.WeldConstraint.Part0 = seatc
+ 	seatc.WeldConstraint.Part1 = hb.Part
+ 	seatc.WeldConstraint.Enabled = true 
+ 	seatc.Torque = 0.7
+ 	seatc.MaxSpeed = 150
+ 	seatc.TurnSpeed = 5
+ 	seatc.Disabled = false
+ 	seatc.HeadsUpDisplay = true
+	seatc.WeldConstraint.Enabled = true
+	seatc.Color = Color3.fromRGB(0,0,0)
+	seatc.Transparency = 0
+	seatc.Material = Enum.Material.SmoothPlastic
+	seatc.Parent.Part.Transparency = 1
+	seatc.CanTouch = true
+	seatc.CanCollide = true
+	
+local function Loop(deltaTime)
+	local rayTarget = seat.Position + rayOffset + seat.AssemblyLinearVelocity * rayVelocity
+	local result = workspace:Raycast(seat.Position, rayTarget - seat.Position, raycastParams)
+	if result == nil then
+		vectorForce.Force = Vector3.new(0, minimumThrust, 0)
+		rayPart.BrickColor = BrickColor.Green()
+		rayPart.Position = rayTarget
+	else
+		local magnitude = (result.Position - rayTarget).Magnitude
+		vectorForce.Force = Vector3.new(0, minimumThrust + magnitude * thrust, 0)
+		rayPart.BrickColor = BrickColor.Red()
+		rayPart.Position = result.Position
+	end
+	if seat.AssemblyLinearVelocity.Magnitude > 0 then
+		local velocity = seat.CFrame:VectorToObjectSpace(seat.AssemblyLinearVelocity)
+		vectorForce.Force -= velocity.Unit * (drag * velocity.Magnitude ^ 2)
+	end
+	orientation *= CFrame.fromOrientation(0, -seat.SteerFloat * seat.TurnSpeed * deltaTime, 0)
+	local tiltOrientation = CFrame.fromOrientation(-seat.ThrottleFloat * seat.Torque, 0, -seat.SteerFloat * seat.Torque)
+	local counterX = math.clamp(-seat.AssemblyLinearVelocity.Z * counter, -seat.Torque, seat.Torque)
+	local counterZ = math.clamp(seat.AssemblyLinearVelocity.X * counter, -seat.Torque, seat.Torque)
+	local counterOrientation = CFrame.fromOrientation(counterX, 0, counterZ)
+	alignOrientation.CFrame = counterOrientation * orientation * tiltOrientation
+end
+local lastcff= nil
+local function Seated(active, currentSeat)
+	if active == false then
+		if connection == nil then return end
+		connection:Disconnect()
+		connection = nil
+		attachment:Destroy()
+		vectorForce:Destroy()
+		alignOrientation:Destroy()
+
+	elseif currentSeat.Name == "Hoverboard" then
+		seat = currentSeat
+		attachment = Instance.new("Attachment", seat)
+		vectorForce = Instance.new("VectorForce")
+		vectorForce.Force = Vector3.zero
+		vectorForce.ApplyAtCenterOfMass = true
+		vectorForce.Attachment0 = attachment
+		vectorForce.Parent = seat
+		orientation = CFrame.fromMatrix(Vector3.zero, seat.CFrame.LookVector:Cross(Vector3.yAxis), Vector3.yAxis)
+		alignOrientation = Instance.new("AlignOrientation")
+		alignOrientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
+		alignOrientation.CFrame = orientation
+		alignOrientation.Attachment0 = attachment
+		alignOrientation.Parent = seat
+		raycastParams = RaycastParams.new()
+		raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+		raycastParams.FilterDescendantsInstances = {character, seat:FindFirstAncestorOfClass("Model")}
+		connection = RunService.PostSimulation:Connect(Loop)
+	end
+end
+
+humanoid.Seated:Connect(Seated)
